@@ -2,9 +2,6 @@
 /// что распарсить осталось'
 pub trait Parser {
     type Dest;
-    // подсказка: здесь можно переделать
-    // на `fn parse<'a>(&self,input:&'a str)->Result<(&'a str, Self::Dest)>`
-    // (возможно, самое трудоёмкое; в своих проектах проще сразу не допускать)
     fn parse<'a>(&self, input: &'a str) -> Result<(&'a str, Self::Dest), ()>;
 }
 /// Вспомогательный трейт, чтобы писать собственный десериализатор
@@ -37,9 +34,6 @@ mod stdp { // parsers for std types
                     &remaining[..end_idx],
                     if is_hex {16} else {10}
                 ).map_err(|_| ())?;
-            // подсказка: вместо if можно использовать tight-тип std::num::NonZeroU32
-            //            (ограничиться NonZeroU32::new(value).ok_or(()).get() - норм)
-            //            или даже заиспользовать tightness
             Ok((
                 &remaining[end_idx..],
                 NonZeroU32::new(value).ok_or(())?.get()
@@ -616,7 +610,6 @@ fn take<T: Parser>(count: usize, parser: T) -> Take<T> {
 
 const AUTHDATA_SIZE: usize = 1024;
 
-// подсказка: довольно много места на стэке
 /// Данные для авторизации
 #[derive(Debug,Clone,PartialEq)]
 pub struct AuthData(Box<[u8;AUTHDATA_SIZE]>);
@@ -785,7 +778,6 @@ pub enum AppLogErrorKind {
     LackOf(String),
     SystemError(String),
 }
-// подсказка: а поля не слишком много места на стэке занимают?
 /// Trace [приложения](AppLogKind)
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppLogTraceKind {
