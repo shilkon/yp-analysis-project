@@ -11,26 +11,30 @@ pub enum ReadMode {
     ERRORS,
 
     /// Режим чтения из логов только операций, касающихся деген
-    EXCHANGES
+    EXCHANGES,
 }
 
 /// Итератор, на выходе которого - строки распарсенной структуры данных
 #[derive(Debug)]
 struct LogIterator<T> {
-    lines: std::iter::Filter<std::io::Lines<std::io::BufReader<T>>, fn(&Result<String,std::io::Error>)->bool>
+    lines: std::iter::Filter<
+        std::io::Lines<std::io::BufReader<T>>,
+        fn(&Result<String, std::io::Error>) -> bool,
+    >,
 }
 impl<T: std::io::Read> LogIterator<T> {
     fn new(r: T) -> Self {
         use std::io::BufRead;
-        Self{
+        Self {
             lines: std::io::BufReader::with_capacity(4096, r)
                 .lines()
-                .filter(
-                    |line_res|
-                    !line_res.as_ref().ok()
+                .filter(|line_res| {
+                    !line_res
+                        .as_ref()
+                        .ok()
                         .map(|line| line.trim().is_empty())
                         .unwrap_or(false)
-                )
+                }),
         }
     }
 }
@@ -48,33 +52,30 @@ pub fn read_log<T: std::io::Read>(input: T, mode: ReadMode, request_ids: Vec<u32
     let logs = LogIterator::new(input);
     logs.into_iter()
         .filter(|log| {
-            if !request_ids.is_empty() || request_ids.contains(&log.request_id) {
+            if !request_ids.is_empty() && !request_ids.contains(&log.request_id) {
                 return false;
             }
             match mode {
                 ReadMode::ALL => true,
                 ReadMode::ERRORS => matches!(
                     &log.kind,
-                    LogKind::System(
-                        SystemLogKind::Error(_)) | LogKind::App(AppLogKind::Error(_)
-                    )
+                    LogKind::System(SystemLogKind::Error(_)) | LogKind::App(AppLogKind::Error(_))
                 ),
                 ReadMode::EXCHANGES => matches!(
                     &log.kind,
                     LogKind::App(AppLogKind::Journal(
                         AppLogJournalKind::BuyAsset(_)
-                        | AppLogJournalKind::SellAsset(_)
-                        | AppLogJournalKind::CreateUser{..}
-                        | AppLogJournalKind::RegisterAsset{..}
-                        | AppLogJournalKind::DepositCash(_)
-                        | AppLogJournalKind::WithdrawCash(_)
+                            | AppLogJournalKind::SellAsset(_)
+                            | AppLogJournalKind::CreateUser { .. }
+                            | AppLogJournalKind::RegisterAsset { .. }
+                            | AppLogJournalKind::DepositCash(_)
+                            | AppLogJournalKind::WithdrawCash(_)
                     ))
-                )
+                ),
             }
         })
         .collect()
 }
-
 
 #[cfg(test)]
 mod test {
@@ -146,15 +147,16 @@ App::Trace GetResponse "Ok" requestid=10
 App::Journal BuyAsset UserBacket{"user_id":"Alice","backet":Backet{"asset_id":"milk","count":5,},} requestid=10
         "#;
 
-
     #[test]
     fn test_all() {
         assert_eq!(read_log(SOURCE1.as_bytes(), ReadMode::ALL, vec![]).len(), 1);
         let all_parsed = read_log(SOURCE.as_bytes(), ReadMode::ALL, vec![]);
         println!("all parsed:");
-        all_parsed.iter().for_each(|parsed| println!("  {:?}", parsed));
+        all_parsed
+            .iter()
+            .for_each(|parsed| println!("  {:?}", parsed));
         // 2 для начала и конца строки (чтобы первая и последняя кавычки на отдельных строках были)
         // второе число - число пустых строк, которые оставлены для удобства чтения
-        assert_eq!(all_parsed.len(), SOURCE.lines().count()-2-7);
+        assert_eq!(all_parsed.len(), SOURCE.lines().count() - 2 - 7);
     }
 }
